@@ -3,9 +3,12 @@ import Reveal from '@/components/Reveal';
 import Rotator from '@/components/Rotator';
 import CountUp from '@/components/CountUp';
 import Faq from '@/components/Faq';
+import ProductCard from '@/components/ProductCard';
+import { LivePanel } from '@/components/LiveStats';
 import Stars from '@/components/Stars';
 import Shop from '@/components/Shop';
-import HeroStack from '@/components/HeroStack';
+import Cyborg from '@/components/Cyborg';
+import AucCard from '@/components/AucCard';
 import Robot from '@/components/Robot';
 export const dynamic = 'force-dynamic';
 const WA = process.env.NEXT_PUBLIC_WA_ADMIN || '6282319319768';
@@ -28,8 +31,9 @@ const CH = [
 export default async function Home() {
   await init();
   const hold = await holdMin();
-  const rows = await sql`select id,title,price,description,specs,images->>0 as cover,case when jsonb_typeof(images)='array' then jsonb_array_length(images) else 0 end as n from accounts where status='available' or (status='reserved' and reserved_at<now()-make_interval(mins => ${hold}::int)) order by id desc`;
-  const [s] = await sql`select count(*) filter (where status='sold')::int as sold, count(*) filter (where status='available')::int as ready from accounts`;
+  const rows = await sql`select id,title,price,description,specs,case when (images->>0) like 'data:%' then '/api/img/' || id::text else images->>0 end as cover,case when jsonb_typeof(images)='array' then jsonb_array_length(images) else 0 end as n from accounts where kind='fixed' and (status='available' or (status='reserved' and reserved_at<now()-make_interval(mins => ${hold}::int))) order by id desc`;
+  const auc = await sql`select a.id,a.title,a.price,case when (a.images->>0) like 'data:%' then '/api/img/' || a.id::text else a.images->>0 end as cover,extract(epoch from (a.ends_at-now()))::int as left,(select max(amount)::int from bids b where b.account_id=a.id) as top,(select count(*)::int from bids b where b.account_id=a.id) as n from accounts a where a.kind='auction' and a.auction_done=false and a.ends_at>now() order by a.ends_at asc limit 6`;
+  const [s] = await sql`select count(*) filter (where status='sold')::int as sold, count(*) filter (where status='available' and kind='fixed')::int as ready from accounts`;
   const items = rows.map((r) => ({ id: r.id, title: r.title, price: r.price, cover: r.cover || '', n: r.n, hay: [r.title, r.description, r.specs].join(' ').toLowerCase() }));
   const [ag] = await sql`select count(*)::int as n, coalesce(round(avg(rating)::numeric,1),0)::float as avg from reviews where not hidden`;
   const [vs] = await sql`select (select count(*) from visitors where last_seen>now()-interval '2 minutes')::int as online, (select count(distinct vid) from pageviews where created::date=current_date)::int as today`;
@@ -47,26 +51,40 @@ export default async function Home() {
           </div>
           <div className="trust"><span>Foto jelas</span><span>Dikirim otomatis</span><span>Dibantu admin</span></div>
         </Reveal>
-        <Reveal delay={0.15}><HeroStack items={items} /></Reveal>
+        <Reveal delay={0.15}>
+          <div className="cyw">
+            <Cyborg />
+            <span className="fchip c1">▣ {s?.ready || 0} stok siap</span>
+            <span className="fchip c2">🔨 {auc.length} lelang live</span>
+            <span className="fchip c3">★ QRIS otomatis</span>
+          </div>
+        </Reveal>
       </section>
       <div className="mq"><div className="mqt">{[...BADGES, ...BADGES].map((b, i) => <span key={i}>{b}</span>)}</div></div>
-      <Reveal>
-        <div className="kpi">
-          <div><b><CountUp to={s?.sold || 0} /></b><small>Akun terjual</small></div>
-          <div><b><CountUp to={s?.ready || 0} /></b><small>Stok tersedia</small></div>
-          <div><b>{ag.n ? ag.avg.toFixed(1) + ' ★' : 'Baru'}</b><small>Rating toko</small></div>
-          <div><b><CountUp to={vs?.online || 0} /></b><small>Online sekarang</small></div>
-          <div><b><CountUp to={vs?.today || 0} /></b><small>Pengunjung hari ini</small></div>
-        </div>
-      </Reveal>
+      <Reveal><LivePanel /></Reveal>
       <div className="sh"><h2>Cara beli</h2></div>
       <div className="how">
         {HOW.map(([n, t, d], i) => (
           <Reveal key={n} delay={i * 0.08}><div><b className="n">{n}</b><b>{t}</b><p className="mut">{d}</p></div></Reveal>
         ))}
       </div>
-      <div className="sh" id="stok"><h2>Stok akun</h2><span className="mut">{rows.length} tersedia</span></div>
-      <Shop items={items} wa={WA} />
+      {auc.length > 0 && (
+        <>
+          <div className="sh"><h2>Lelang berlangsung</h2><a href="/lelang" className="go">Lihat semua lelang</a></div>
+          <div className="grid">
+            {auc.map((a, i) => <Reveal key={a.id} delay={Math.min(i, 6) * 0.06}><AucCard a={a} /></Reveal>)}
+          </div>
+        </>
+      )}
+      <div className="sh" id="stok"><h2>Stok akun</h2><a href="/store" className="go">Buka Store</a></div>
+      {!items.length ? (
+        <div className="empty"><h3>Stok sedang kosong</h3><p>Hubungi admin untuk request akun yang kamu cari, atau ikut lelang.</p><a href={`https://wa.me/${WA}`} target="_blank" className="btn">Chat Admin</a></div>
+      ) : (
+        <>
+          <div className="grid">{items.slice(0, 6).map((a, i) => <Reveal key={a.id} delay={Math.min(i, 6) * 0.06}><ProductCard a={{ ...a, kind: 'fixed' }} /></Reveal>)}</div>
+          <div style={{ textAlign: 'center', marginTop: 18 }}><a href="/store" className="btn o">Lihat semua di Store ({items.length})</a></div>
+        </>
+      )}
       <div className="sh"><h2>Testimoni pembeli</h2><a href="/testimoni" className="go">Lihat semua dan tulis testimoni</a></div>
       <Reveal>
         <div className="rsum" style={{ marginBottom: 14 }}>

@@ -6,14 +6,19 @@ const put = (k, v) => sql`insert into meta(k,v) values(${k},${String(v)}) on con
 export async function GET() {
   if (!isAdmin(await getUser())) return no();
   await init();
-  const r = await sql`select k,v from meta where k in ('ap_mid','ap_key','fee','hold_min')`;
+  const r = await sql`select k,v from meta where k in ('ap_mid','ap_key','fee','hold_min','auc_pay')`;
   const m = Object.fromEntries(r.map((x) => [x.k, x.v]));
-  return Response.json({ mid: m.ap_mid || '', hasKey: !!(m.ap_key || process.env.ARIESPAY_SECRET_KEY), fee: m.fee !== undefined ? parseInt(m.fee) : 350, hold: parseInt(m.hold_min) || 15 });
+  return Response.json({ mid: m.ap_mid || '', hasKey: !!(m.ap_key || process.env.ARIESPAY_SECRET_KEY), fee: m.fee !== undefined ? parseInt(m.fee) : 350, hold: parseInt(m.hold_min) || 15, auc: parseInt(m.auc_pay) || 30 });
 }
 export async function POST(req) {
   if (!isAdmin(await getUser())) return no();
   await init();
-  const { mid, key, fee, hold } = await req.json();
+  const { mid, key, fee, hold, auc } = await req.json();
+  if (auc !== undefined) {
+    const n = parseInt(auc);
+    if (!(n >= 10 && n <= 240)) return bad('Waktu bayar lelang 10 sampai 240 menit');
+    await put('auc_pay', n);
+  }
   if (hold !== undefined) {
     const n = parseInt(hold);
     if (!(n >= 5 && n <= 120)) return bad('Isi 5 sampai 120 menit');

@@ -1,5 +1,6 @@
 import { sql, init } from '@/lib/db';
 import { getUser } from '@/lib/auth';
+import { settleAuctions } from '@/lib/auction';
 export async function POST(req) {
   try {
     const b = await req.json();
@@ -11,6 +12,7 @@ export async function POST(req) {
     const p = String(b?.path || '/').slice(0, 120);
     await sql`insert into visitors(vid,user_id,path) values(${vid},${uid},${p}) on conflict(vid) do update set last_seen=now(),path=${p},user_id=coalesce(${uid}::int,visitors.user_id)`;
     if (!b?.hb) await sql`insert into pageviews(vid,path) values(${vid},${p})`;
+    if (b?.hb) await settleAuctions();
     return Response.json({ ok: 1 });
   } catch { return Response.json({ ok: 0 }); }
 }

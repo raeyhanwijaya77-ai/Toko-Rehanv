@@ -1,76 +1,49 @@
 'use client';
-import { useState, useEffect } from 'react';
-
-export default function LiveStats() {
-  const [stats, setStats] = useState({
-    visitMember: 1420,
-    onMember: 94,
-    accountsSold: 382,
-    totalStock: 48
-  });
-
+import { useEffect, useState } from 'react';
+const Z = { online: 0, on_member: 0, visit: 0, visit_member: 0, sold: 0, stock: 0 };
+let cache = null;
+let timer = null;
+const subs = new Set();
+async function pull() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+  try {
+    const r = await fetch('/api/live', { cache: 'no-store' });
+    const d = await r.json();
+    cache = d;
+    subs.forEach((f) => f(d));
+  } catch {}
+}
+function useLive() {
+  const [d, setD] = useState(cache || Z);
   useEffect(() => {
-    const timer = setInterval(() => {
-      setStats(prev => ({
-        ...prev,
-        onMember: Math.max(15, prev.onMember + (Math.random() > 0.5 ? 1 : -1)),
-        visitMember: prev.visitMember + 1
-      }));
-    }, 7000);
-    return () => clearInterval(timer);
+    subs.add(setD);
+    if (cache) setD(cache);
+    if (!timer) { pull(); timer = setInterval(pull, 10000); }
+    return () => { subs.delete(setD); if (!subs.size && timer) { clearInterval(timer); timer = null; } };
   }, []);
-
+  return d;
+}
+const n = (v) => Number(v || 0).toLocaleString('id-ID');
+export function LiveStrip() {
+  const d = useLive();
   return (
-    <section className="my-8 max-w-7xl mx-auto px-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#39ff88] animate-ping" />
-          LIVE STATS REALTIME (UPDATE HARIAN)
-        </h2>
-        <span className="text-[10px] text-slate-400">🔄 Auto Sync</span>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="cyborg-card p-3.5 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-[#00f0ff]/10 text-[#00f0ff] border border-[#00f0ff]/30 text-lg">
-            👁️
-          </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase">Visit Member</p>
-            <p className="text-lg font-black text-white">{stats.visitMember.toLocaleString()}</p>
-          </div>
-        </div>
-
-        <div className="cyborg-card p-3.5 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-[#39ff88]/10 text-[#39ff88] border border-[#39ff88]/30 text-lg">
-            👥
-          </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase">On Member (Online)</p>
-            <p className="text-lg font-black text-[#39ff88]">{stats.onMember}</p>
-          </div>
-        </div>
-
-        <div className="cyborg-card p-3.5 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-[#b000ff]/10 text-[#b000ff] border border-[#b000ff]/30 text-lg">
-            ✅
-          </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase">Akun Terjual/Terlelang</p>
-            <p className="text-lg font-black text-[#b000ff]">{stats.accountsSold}</p>
-          </div>
-        </div>
-
-        <div className="cyborg-card p-3.5 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-[#ff007f]/10 text-[#ff007f] border border-[#ff007f]/30 text-lg">
-            📦
-          </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase">Total Stok Akun</p>
-            <p className="text-lg font-black text-[#ff007f]">{stats.totalStock}</p>
-          </div>
-        </div>
-      </div>
-    </section>
+    <div className="strip">
+      <span><i className="live" />On Member <b>{n(d.on_member)}</b></span>
+      <span>Online <b>{n(d.online)}</b></span>
+      <span>Pengunjung <b>{n(d.visit)}</b></span>
+      <span>Stok <b>{n(d.stock)}</b></span>
+      <span>Terjual <b>{n(d.sold)}</b></span>
+    </div>
+  );
+}
+export function LivePanel() {
+  const d = useLive();
+  const items = [['Visit Member', d.visit_member, 'total member yang pernah berkunjung'], ['On Member', d.on_member, 'member online sekarang'], ['Akun Terjual', d.sold, 'total pesanan lunas'], ['Total Stok Akun Sekarang', d.stock, 'stok dan lelang tersedia'], ['Pengunjung', d.visit, 'total sejak toko dibuka'], ['User Aktif', d.online, 'online sekarang (semua)']];
+  return (
+    <div className="lv">
+      {items.map(([t, v, s]) => (
+        <div className="lvi" key={t}><small><i className="live" />{t}</small><b>{n(v)}</b><em>{s}</em></div>
+      ))}
+    </div>
   );
 }

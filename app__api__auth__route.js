@@ -4,6 +4,7 @@ import { sql, init } from '@/lib/db';
 import { setSession, hashPw, checkPw, isAdmin } from '@/lib/auth';
 import { googleOn } from '@/lib/google';
 import { logAct } from '@/lib/activity';
+import { otpHtml } from '@/lib/mail';
 const err = (m, s = 400) => Response.json({ error: m }, { status: s });
 const OTP = () => !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 const uname = (x) => String(x || '').toLowerCase().trim().replace(/\s+/g, '_');
@@ -43,7 +44,7 @@ async function main(req) {
       await sql`insert into otps(email,code,sent,tries) values(${u.email},${code},now(),0) on conflict(email) do update set code=${code},sent=now(),tries=0`;
       try {
         const t = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } });
-        await t.sendMail({ from: `Toko Akun Rehan <${process.env.GMAIL_USER}>`, to: u.email, subject: 'Kode reset password Toko Akun Rehan', text: `Kode reset password kamu: ${code}\nBerlaku 10 menit. Abaikan email ini jika kamu tidak memintanya.` });
+        await t.sendMail({ from: `Toko Akun Rehan <${process.env.GMAIL_USER}>`, to: u.email, subject: 'Kode reset password Toko Akun Rehan', html: otpHtml(code, 'Kode reset password'), text: `Kode reset password kamu: ${code}\nBerlaku 10 menit. Abaikan email ini jika kamu tidak memintanya.` });
       } catch { return err('Gagal kirim email. Cek GMAIL_USER dan GMAIL_APP_PASSWORD di Vercel', 502); }
       return Response.json({ ok: 1 });
     }
@@ -69,7 +70,7 @@ async function main(req) {
     await sql`insert into otps(email,code,sent,tries) values(${e},${code},now(),0) on conflict(email) do update set code=${code},sent=now(),tries=0`;
     try {
       const t = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } });
-      await t.sendMail({ from: `Toko Akun Rehan <${process.env.GMAIL_USER}>`, to: e, subject: 'Kode verifikasi Toko Akun Rehan', text: `Kode verifikasi kamu: ${code}\nBerlaku 10 menit. Jangan bagikan ke siapa pun.` });
+      await t.sendMail({ from: `Toko Akun Rehan <${process.env.GMAIL_USER}>`, to: e, subject: 'Kode verifikasi Toko Akun Rehan', html: otpHtml(code, 'Kode verifikasi pendaftaran'), text: `Kode verifikasi kamu: ${code}\nBerlaku 10 menit. Jangan bagikan ke siapa pun.` });
     } catch { return err('Gagal kirim email. Cek GMAIL_USER dan GMAIL_APP_PASSWORD di Vercel', 502); }
     return Response.json({ ok: 1 });
   }

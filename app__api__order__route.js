@@ -9,10 +9,10 @@ export async function POST(req) {
   await init();
   const { accountId, voucher } = await req.json();
   const hold = await holdMin();
-  await sql`update accounts set status='available' where status='reserved' and reserved_at<now()-make_interval(mins => ${hold}::int)`;
+  await sql`update accounts set status='available' where status='reserved' and kind='fixed' and reserved_at<now()-make_interval(mins => ${hold}::int)`;
   const [pn] = await sql`select count(*)::int as n from orders where user_id=${u.id} and status='pending' and created>now()-make_interval(mins => ${hold}::int)`;
   if (pn.n >= 2) return Response.json({ error: 'Kamu masih punya 2 pesanan yang menunggu pembayaran. Selesaikan atau batalkan dulu di menu Pesanan.' }, { status: 429 });
-  const [a] = await sql`update accounts set status='reserved',reserved_at=now(),buyer_id=${u.id} where id=${accountId} and status='available' returning id,price`;
+  const [a] = await sql`update accounts set status='reserved',reserved_at=now(),buyer_id=${u.id} where id=${accountId} and status='available' and kind='fixed' returning id,price`;
   if (!a) return Response.json({ error: 'Akun sudah tidak tersedia' }, { status: 409 });
   const fee = await getFee();
   let base = a.price, code = '', disc = 0;

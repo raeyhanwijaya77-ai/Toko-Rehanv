@@ -1,8 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import SafeImg from '@/components/SafeImg';
+import ProductCard from '@/components/ProductCard';
 const SORT = [['new', 'Terbaru'], ['low', 'Termurah'], ['high', 'Termahal']];
 export default function Shop({ items = [], wa = '' }) {
   const [q, setQ] = useState('');
@@ -42,18 +41,7 @@ export default function Shop({ items = [], wa = '' }) {
           <AnimatePresence mode="popLayout">
             {list.map((a, i) => (
               <motion.div layout key={a.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92 }} transition={{ duration: 0.3, delay: Math.min(i, 8) * 0.04 }} whileHover={{ y: -6 }}>
-                <Link href={`/akun/${a.id}`} className="card">
-                  <div className="frame">
-                    <SafeImg src={a.cover} alt={a.title} />
-                    <span className="tag ok">Ready</span>
-                    {a.n > 1 && <span className="tag n">{a.n} foto</span>}
-                    <span className="pchip">Rp {a.price.toLocaleString('id-ID')}</span>
-                  </div>
-                  <div className="cb">
-                    <h3>{a.title}</h3>
-                    <div className="pr"><span className="mut">Lihat spesifikasi</span><span className="go">Detail</span></div>
-                  </div>
-                </Link>
+                <ProductCard a={{ ...a, kind: 'fixed' }} />
               </motion.div>
             ))}
           </AnimatePresence>

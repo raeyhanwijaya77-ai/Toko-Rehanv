@@ -23,6 +23,21 @@ export function init() {
     await sql`alter table orders add column if not exists discount int default 0`;
     await sql`create table if not exists vouchers(id serial primary key,code text unique not null,kind text not null default 'percent',value int not null,max_uses int default 0,expires timestamptz,users text default '',active boolean default true,created timestamptz default now())`;
     await sql`alter table orders add column if not exists fee int default 0`;
+    await sql`alter table users add column if not exists phone text default ''`;
+    await sql`alter table users add column if not exists notify boolean default true`;
+    await sql`create table if not exists broadcasts(id serial primary key,subject text,body text,target text,voucher text default '',sent int default 0,admin_id int,created timestamptz default now())`;
+    await sql`alter table accounts add column if not exists wa text default ''`;
+    await sql`alter table accounts add column if not exists admin_id int`;
+    await sql`alter table users add column if not exists avatar text default ''`;
+    await sql`alter table accounts add column if not exists kind text default 'fixed'`;
+    await sql`alter table accounts add column if not exists step int default 1000`;
+    await sql`alter table accounts add column if not exists ends_at timestamptz`;
+    await sql`alter table accounts add column if not exists auction_done boolean default false`;
+    await sql`alter table orders add column if not exists kind text default 'fixed'`;
+    await sql`alter table accounts add column if not exists warranty text default 'no'`;
+    await sql`alter table accounts add column if not exists warranty_note text default ''`;
+    await sql`create table if not exists bids(id serial primary key,account_id int not null,user_id int not null,amount int not null,created timestamptz default now())`;
+    await sql`create index if not exists bids_acc_idx on bids(account_id,amount desc)`;
     await sql`create table if not exists visitors(vid text primary key,user_id int,path text default '',first_seen timestamptz default now(),last_seen timestamptz default now())`;
     await sql`create table if not exists pageviews(id serial primary key,vid text,path text default '',created timestamptz default now())`;
     await sql`create index if not exists pageviews_created_idx on pageviews(created desc)`;
@@ -51,4 +66,12 @@ export async function getFee() {
     const n = parseInt(r?.v);
     return n >= 0 && n <= 5000 ? n : 350;
   } catch { return 350; }
+}
+
+export async function auctionPayMin() {
+  try {
+    const [r] = await sql`select v from meta where k='auc_pay'`;
+    const n = parseInt(r?.v);
+    return n >= 10 && n <= 240 ? n : 30;
+  } catch { return 30; }
 }

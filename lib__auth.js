@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import crypto from 'node:crypto';
+import { sql } from './db';
 const secret = process.env.JWT_SECRET || crypto.createHash('sha256').update('k1' + (process.env.DATABASE_URL || 'dev')).digest('hex');
 const key = () => new TextEncoder().encode(secret);
 export const ADMIN = (process.env.ADMIN_EMAIL || 'raeyhanwijaya77@gmail.com').toLowerCase().trim();
@@ -16,3 +17,13 @@ export async function getUser() {
   try { const t = (await cookies()).get('s')?.value; if (!t) return null; return (await jwtVerify(t, key())).payload; } catch { return null; }
 }
 export const isAdmin = (u) => !!u && (u.role === 'admin_rehan' || u.email === ADMIN);
+
+export async function getStaff() {
+  const u = await getUser();
+  if (!u) return null;
+  const [r] = await sql`select id,email,username,role,phone from users where id=${u.id}`;
+  if (!r) return null;
+  const owner = r.role === 'admin_rehan' || r.email === ADMIN;
+  if (!owner) return null;
+  return { ...r, owner: true };
+}

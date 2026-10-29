@@ -4,10 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 const WA = process.env.NEXT_PUBLIC_WA_ADMIN || '6282319319768';
 const MSG = { google_off: 'Login Google belum diaktifkan.', google_cancel: 'Login Google dibatalkan.', google_state: 'Sesi login Google kedaluwarsa, coba lagi.' };
 import Robot from '@/components/Robot';
+import OtpBox from '@/components/OtpBox';
 export default function Login() {
   const [m, setM] = useState('login');
-  const [f, setF] = useState({ login: '', username: '', email: '', password: '', otp: '' });
-  const [gg, setGg] = useState(false), [on, setOn] = useState(false), [show, setShow] = useState(false), [e, setE] = useState(''), [info, setI] = useState(''), [busy, setB] = useState(false), [sk, setSk] = useState(0);
+  const [f, setF] = useState({ login: '', username: '', email: '', password: '', otp: '', confirm: '' });
+  const [gg, setGg] = useState(false), [on, setOn] = useState(false), [show, setShow] = useState(false), [e, setE] = useState(''), [info, setI] = useState(''), [busy, setB] = useState(false), [cd, setCd] = useState(0), [sentOnce, setSentOnce] = useState(false), [sk, setSk] = useState(0);
   useEffect(() => {
     fetch('/api/auth').then((r) => r.json()).then((d) => { setOn(!!d.otp); setGg(!!d.google); }).catch(() => {});
     const c = new URLSearchParams(window.location.search).get('e');
@@ -19,13 +20,20 @@ export default function Login() {
     .catch(() => ({ ok: false, error: 'Koneksi gagal, coba lagi' }));
   const fail = (msg) => { setE(msg); setSk((n) => n + 1); };
   const go = (to) => { setM(to); setE(''); setI(''); };
+  useEffect(() => {
+    if (cd <= 0) return;
+    const t = setTimeout(() => setCd((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cd]);
   async function kirim() {
     setE(''); setI('');
     const d = await call(m === 'forgot' ? 'forgot_send' : 'send');
-    d.ok ? setI('Jika akun terdaftar, kode dikirim ke Gmail (cek juga folder Spam).') : fail(d.error);
+    if (d.ok) { setI('Kode dikirim ke Gmail kamu. Cek juga folder Spam.'); setCd(60); setSentOnce(true); } else fail(d.error);
   }
   async function sub(ev) {
-    ev.preventDefault(); setE(''); setI(''); setB(true);
+    ev.preventDefault(); setE(''); setI('');
+    if (m === 'forgot' && f.password !== f.confirm) return fail('Konfirmasi password baru tidak sama');
+    setB(true);
     const d = await call(m === 'forgot' ? 'forgot_reset' : m);
     setB(false);
     if (!d.ok) return fail(d.error);
@@ -66,8 +74,7 @@ export default function Login() {
               <input type="email" placeholder="nama@gmail.com" value={f.email} onChange={set('email')} required />
               {true && (
                 <>
-                  <button type="button" className="btn o sm" style={{ marginBottom: 12 }} onClick={kirim}>Kirim Kode Verifikasi</button>
-                  <input inputMode="numeric" placeholder="Kode 6 digit dari Gmail" value={f.otp} onChange={set('otp')} required />
+                  <OtpBox value={f.otp} onChange={(v) => setF({ ...f, otp: v })} onResend={kirim} cd={cd} sent={sentOnce} />
                 </>
               )}
               {pwField('Password')}
@@ -80,9 +87,10 @@ export default function Login() {
                 <>
                   <label className="l">Username atau Gmail</label>
                   <input placeholder="username atau nama@gmail.com" value={f.login} onChange={set('login')} autoCapitalize="none" required />
-                  <button type="button" className="btn o sm" style={{ marginBottom: 12 }} onClick={kirim}>Kirim Kode ke Gmail</button>
-                  <input inputMode="numeric" placeholder="Kode 6 digit dari Gmail" value={f.otp} onChange={set('otp')} required />
+                  <OtpBox value={f.otp} onChange={(v) => setF({ ...f, otp: v })} onResend={kirim} cd={cd} sent={sentOnce} />
                   {pwField('Password baru')}
+                  <label className="l">Ulangi password baru</label>
+                  <input type="password" placeholder="Ulangi password baru" value={f.confirm} onChange={set('confirm')} required />
                 </>
               ) : (
                 <>

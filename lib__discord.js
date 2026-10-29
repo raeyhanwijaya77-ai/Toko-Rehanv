@@ -19,11 +19,12 @@ async function summary() {
 }
 export async function notifySale(o) {
   try {
-    const [a] = await sql`select title from accounts where id=${o.account_id}`;
+    const [a] = await sql`select a.title,u.username as adm from accounts a left join users u on u.id=a.admin_id where a.id=${o.account_id}`;
     const [b] = await sql`select username,email from users where id=${o.user_id}`;
     const s = await summary();
     const fields = [
       { name: 'Akun', value: a?.title || '-' },
+      { name: 'Admin stok', value: a?.adm || 'owner', inline: true },
       { name: 'Pembeli', value: b?.username || b?.email || '-', inline: true },
       { name: 'Dibayar pembeli', value: rp(o.amount), inline: true },
       { name: 'Diterima bersih', value: rp(o.amount - (o.fee || 0)), inline: true },
@@ -42,6 +43,14 @@ export async function notifyConflict(o) {
     const [a] = await sql`select title from accounts where id=${o.account_id}`;
     const [b] = await sql`select username,email from users where id=${o.user_id}`;
     await sendDiscord({ embeds: [{ title: '⚠ Pembayaran masuk, tapi akun sudah terjual', color: 0xfb7185, description: 'Pembeli membayar setelah waktu pesanan habis dan akunnya sudah dibeli orang lain. Hubungi pembeli untuk refund atau akun pengganti.', fields: [{ name: 'Order', value: o.id, inline: true }, { name: 'Akun', value: a?.title || '-', inline: true }, { name: 'Pembeli', value: b?.username || b?.email || '-', inline: true }, { name: 'Dibayar', value: rp(o.amount), inline: true }], timestamp: new Date().toISOString() }] });
+  } catch {}
+}
+export async function notifyAuction(title, winner, amount, bids) {
+  try {
+    await sendDiscord({ embeds: [{ title: winner ? '🔨 Lelang berakhir, ada pemenang' : '🔨 Lelang berakhir tanpa penawar', color: 0xffc400, fields: [
+      { name: 'Akun', value: title || '-' },
+      ...(winner ? [{ name: 'Pemenang', value: winner, inline: true }, { name: 'Bid tertinggi', value: rp(amount), inline: true }, { name: 'Jumlah bid', value: String(bids || 0), inline: true }] : []),
+    ], footer: { text: winner ? 'QRIS pemenang sudah dibuat otomatis' : 'Akun kembali jadi harga tetap' }, timestamp: new Date().toISOString() }] });
   } catch {}
 }
 export async function notifyReview(name, rating, body) {

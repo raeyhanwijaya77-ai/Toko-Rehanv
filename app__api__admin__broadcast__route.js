@@ -1,86 +1,69 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { getAuthUser } from '@/lib/auth';
 import nodemailer from 'nodemailer';
-
-export async function POST(req) {
-  try {
-    const auth = await getAuthUser(req);
-    if (!auth || auth.role !== 'admin') {
-      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 });
-    }
-
-    const { subject, message } = await req.json();
-
-    if (!subject || !message) {
-      return NextResponse.json({ error: 'Judul dan isi pesan wajib diisi' }, { status: 400 });
-    }
-
-    const users = await db.query('SELECT DISTINCT email FROM users WHERE email IS NOT NULL');
-    const emailList = users.rows.map(u => u.email).filter(Boolean);
-
-    if (emailList.length === 0) {
-      return NextResponse.json({ error: 'Tidak ada email pembeli ditemukan' }, { status: 400 });
-    }
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    });
-
-    const siteUrl = process.env.SITE_URL || 'https://toko-robloxrehan10.vercel.app';
-
-    await transporter.sendMail({
-      from: `"Toko Rehan Roblox" <${process.env.GMAIL_USER}>`,
-      bcc: emailList,
-      subject: `📢 [PROMO EXCLUSIVE] ${subject}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #04080f; color: #ffffff; margin: 0; padding: 20px; }
-            .container { max-width: 600px; margin: 0 auto; background: #071420; border: 1px solid #00f0ff; border-radius: 12px; padding: 24px; box-shadow: 0 0 20px rgba(0, 240, 255, 0.2); }
-            .header { text-align: center; padding-bottom: 20px; border-bottom: 1px solid rgba(0, 240, 255, 0.3); }
-            .brand { font-size: 24px; font-weight: 900; color: #00f0ff; letter-spacing: 2px; }
-            .title { color: #39ff88; font-size: 18px; font-weight: bold; margin-top: 20px; }
-            .content { font-size: 14px; color: #cbd5e1; line-height: 1.7; white-space: pre-line; margin: 15px 0 25px; }
-            .btn { display: inline-block; background: linear-gradient(90deg, #00f0ff 0%, #0099ff 100%); color: #000000; font-weight: 800; padding: 12px 28px; border-radius: 8px; text-decoration: none; text-align: center; }
-            .footer { text-align: center; margin-top: 30px; font-size: 11px; color: #64748b; border-top: 1px solid #1e293b; padding-top: 15px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <div class="brand">🤖 TOKO REHAN ROBLOX</div>
-            </div>
-            <div class="title">${subject}</div>
-            <div class="content">${message}</div>
-            <div style="text-align: center; margin-top: 20px;">
-              <a href="${siteUrl}" class="btn">🚀 CEK STOK & LELANG SEKARANG</a>
-            </div>
-            <div class="footer">
-              Email ini dikirim otomatis oleh sistem Toko Rehan Roblox.<br>
-              © 2026 Toko Rehan. All rights reserved.
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    });
-
-    return NextResponse.json({ 
-      success: true, 
-      totalSent: emailList.length, 
-      message: `Berhasil mengirim broadcast ke ${emailList.length} pelanggan!` 
-    });
-
-  } catch (error) {
-    console.error('Broadcast error:', error);
-    return NextResponse.json({ error: 'Gagal mengirim email broadcast' }, { status: 500 });
+import { sql, init } from '@/lib/db';
+import { getStaff } from '@/lib/auth';
+import { siteOrigin } from '@/lib/google';
+import { broadcastHtml } from '@/lib/mail';
+export const maxDuration = 60;
+const LIMIT = 450;
+const no = () => Response.json({ error: 'forbidden' }, { status: 403 });
+const bad = (m) => Response.json({ error: m }, { status: 400 });
+async function recipients(target, code) {
+  if (target === 'buyers') return (await sql`select distinct u.email from users u join orders o on o.user_id=u.id and o.status='paid' where u.notify is not false and u.email<>''`).map((r) => r.email);
+  if (target === 'voucher') {
+    const [v] = await sql`select users from vouchers where code=${code || ''}`;
+    const list = String(v?.users || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (!list.length) return null;
+    const all = await sql`select email,username from users where notify is not false and email<>''`;
+    return all.filter((u) => list.includes(String(u.username || '').toLowerCase()) || list.includes(String(u.email).toLowerCase())).map((u) => u.email);
   }
+  return (await sql`select email from users where notify is not false and email<>''`).map((r) => r.email);
+}
+export async function GET() {
+  const me = await getStaff();
+  if (!me) return no();
+  await init();
+  const [c] = await sql`select (select count(*) from users where notify is not false and email<>'')::int as total, (select count(distinct u.id) from users u join orders o on o.user_id=u.id and o.status='paid' where u.notify is not false)::int as buyers, (select coalesce(sum(sent),0) from broadcasts where created::date=current_date)::int as today`;
+  const history = await sql`select id,subject,target,sent,created from broadcasts order by id desc limit 10`;
+  const vouchers = await sql`select code,kind,value,users from vouchers where active order by id desc limit 50`;
+  return Response.json({ ...c, limit: LIMIT, history, vouchers });
+}
+export async function POST(req) {
+  const me = await getStaff();
+  if (!me) return no();
+  await init();
+  const b = await req.json();
+  const subject = String(b.subject || '').trim().slice(0, 120);
+  const message = String(b.message || '').trim().slice(0, 2000);
+  if (subject.length < 3 || message.length < 5) return bad('Isi judul dan pesan dulu');
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return bad('Email pengirim belum aktif. Isi GMAIL_USER dan GMAIL_APP_PASSWORD di Vercel');
+  let v = null;
+  if (b.voucher) {
+    [v] = await sql`select code,kind,value,expires from vouchers where code=${String(b.voucher).toUpperCase()} and active`;
+    if (!v) return bad('Voucher tidak ditemukan atau nonaktif');
+  }
+  const { html, text } = broadcastHtml({ subject, message, voucher: v, site: siteOrigin(req) });
+  const t = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } });
+  const from = `Toko Akun Rehan <${process.env.GMAIL_USER}>`;
+  if (b.test) {
+    try { await t.sendMail({ from, to: me.email, subject: '[TES] ' + subject, html, text }); return Response.json({ ok: 1, test: true }); }
+    catch { return bad('Gagal kirim email. Cek GMAIL_USER dan GMAIL_APP_PASSWORD'); }
+  }
+  const target = ['all', 'buyers', 'voucher'].includes(b.target) ? b.target : 'all';
+  const list = await recipients(target, v?.code);
+  if (!list) return bad('Voucher itu tidak dibatasi untuk pengguna tertentu. Pilih target lain');
+  const uniq = [...new Set(list)];
+  if (!uniq.length) return bad('Tidak ada penerima untuk target ini');
+  const [d] = await sql`select coalesce(sum(sent),0)::int as n from broadcasts where created::date=current_date`;
+  if (d.n + uniq.length > LIMIT) return bad(`Batas aman Gmail ${LIMIT} penerima per hari. Hari ini sudah terkirim ${d.n}, penerima sekarang ${uniq.length}. Pilih target lebih kecil atau kirim besok`);
+  let sent = 0;
+  try {
+    for (let i = 0; i < uniq.length; i += 40) {
+      const chunk = uniq.slice(i, i + 40);
+      await t.sendMail({ from, to: process.env.GMAIL_USER, bcc: chunk, subject, html, text });
+      sent += chunk.length;
+    }
+  } catch {}
+  await sql`insert into broadcasts(subject,body,target,voucher,sent,admin_id) values(${subject},${message},${target},${v?.code || ''},${sent},${me.id})`;
+  if (!sent) return bad('Gagal mengirim. Cek email pengirim di Vercel');
+  return Response.json({ ok: 1, sent, total: uniq.length });
 }

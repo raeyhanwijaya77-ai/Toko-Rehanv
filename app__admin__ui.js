@@ -1,4 +1,3 @@
-import AdminBroadcast from '@/components/AdminBroadcast';
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -7,8 +6,8 @@ import SafeImg from '@/components/SafeImg';
 import PwOtp from '@/components/PwOtp';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
-const NAV = [['dash', 'Dashboard', 'grid'], ['akun', 'Akun', 'list'], ['tambah', 'Tambah', 'plus'], ['broadcast', 'Broadcast', 'mail'], ['voucher', 'Voucher', 'tag'], ['bayar', 'Bayar', 'card'], ['user', 'Pengguna', 'user'], ['act', 'Aktivitas', 'pulse'], ['testi', 'Testi', 'star'], ['set', 'Atur', 'shield']];
-const TITLE = { dash: 'Dashboard', akun: 'Daftar Akun', tambah: 'Tambah Akun', broadcast: 'Broadcast Promo', voucher: 'Voucher dan Diskon', bayar: 'Pembayaran dan Notifikasi', user: 'Pengguna', act: 'Pantau Aktivitas', testi: 'Testimoni', set: 'Pengaturan' };
+const NAV = [['dash', 'Dashboard', 'grid'], ['akun', 'Akun', 'list'], ['promo', 'Voucher', 'tag'], ['siaran', 'Siaran', 'mail'], ['maint', 'Maintenance', 'tool'], ['bayar', 'Bayar', 'card'], ['user', 'Pengguna', 'user'], ['testi', 'Testi', 'star'], ['set', 'Atur', 'shield']];
+const TITLE = { dash: 'Dashboard', akun: 'Akun', promo: 'Voucher', siaran: 'Siaran ke Pengguna', maint: 'Maintenance', bayar: 'Pembayaran dan Notifikasi', user: 'Pengguna', testi: 'Testimoni', set: 'Pengaturan' };
 const ICONS = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
   list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
@@ -16,8 +15,11 @@ const ICONS = {
   card: <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></>,
   pulse: <path d="M3 12h4l3-8 4 16 3-8h4" />,
+  crown: <path d="M3 8l4 4 5-7 5 7 4-4v10H3z" />,
   star: <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />,
   tag: <><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1" /></>,
+  mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>,
+  tool: <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.6-.6-.6-2.6z" />,
   shield: <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />,
 };
 const Ic = ({ n }) => <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{ICONS[n]}</svg>;
@@ -55,15 +57,21 @@ async function shrink(file, max = 1100) {
 }
 const toData = (blob) => new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
 
+function Sub({ tabs, value, onChange }) {
+  return <div className="chips" style={{ marginBottom: 14 }}>{tabs.map(([k, l]) => <button key={k} type="button" className={'chip' + (value === k ? ' on' : '')} onClick={() => onChange(k)}>{l}</button>)}</div>;
+}
+
 export default function Admin({ me }) {
   const [tab, setTab] = useState('dash');
   const [editing, setEditing] = useState(null);
   const [watch, setWatch] = useState('');
+  const [sa, setSa] = useState('list'), [su, setSu] = useState('users');
   const [list, setList] = useState([]);
   const [toast, setToast] = useState('');
   const load = async () => { try { const d = await (await fetch('/api/admin/accounts')).json(); setList(Array.isArray(d) ? d : []); } catch {} };
   useEffect(() => { load(); }, []);
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
+  const openEdit = async (a) => { try { const d = await (await fetch('/api/admin/accounts?id=' + a.id)).json(); if (d && d.id) setEditing(d); } catch {} };
   const st = useMemo(() => {
     const sold = list.filter((a) => a.status === 'sold');
     return { total: list.length, ready: list.filter((a) => a.status === 'available').length, sold: sold.length, rev: sold.reduce((s, a) => s + a.price, 0) };
@@ -71,17 +79,17 @@ export default function Admin({ me }) {
   return (
     <div className="adm">
       <aside className="adm-side">
-        <div className="adm-brand"><span className="mark">R</span>Admin Rehan</div>
+        <div className="adm-brand"><span className="mark">⚙</span>Panel Admin</div>
         <div className="adm-nav">
           {NAV.map(([k, label, ic]) => (
             <button key={k} className={tab === k ? 'on' : ''} onClick={() => { setEditing(null); setWatch(''); setTab(k); }}>{tab === k && <motion.span layoutId="pill" className="pillbg" transition={{ type: 'spring', stiffness: 400, damping: 32 }} />}<Ic n={ic} /><span>{label}</span></button>
           ))}
         </div>
-        <div className="adm-foot">Masuk sebagai<br /><b>{me.username}</b><br />{me.email}<br />Toko Akun Rehan v1.0</div>
+        <div className="adm-foot">Masuk sebagai<br /><b>{me.username}</b><br />♛ Sang Penguasa<br /><a href="/profil" className="go">Foto profil dan akun</a></div>
       </aside>
       <main className="adm-main">
         <div className="adm-top">
-          <div><h1>{tab === 'dash' ? <>Halo, {me.username} <span className="wave">👋</span></> : tab === 'akun' && editing ? 'Edit Akun' : TITLE[tab]}</h1><small>Toko Akun Rehan · role {me.role}</small></div>
+          <div><h1>{tab === 'dash' ? <>Halo, {me.username} <span className="wave">👋</span></> : tab === 'akun' && editing ? 'Edit Akun' : TITLE[tab]}</h1><small><span className="modechip">ADMIN MODE</span></small></div>
           <div className="adm-act">
             <ThemeToggle />
             <a href="/" className="btn o sm">Lihat toko</a>
@@ -89,17 +97,26 @@ export default function Admin({ me }) {
           </div>
         </div>
         <AnimatePresence mode="wait">
-          <motion.div key={tab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+          <motion.div key={tab + (editing ? 'e' : '')} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
             {tab === 'dash' && <Dash st={st} list={list} go={setTab} />}
-            {tab === 'akun' && (editing ? <Form key={editing.id} init={editing} done={() => { setEditing(null); load(); }} cancel={() => setEditing(null)} say={say} /> : <Akun list={list} reload={load} say={say} onEdit={setEditing} />)}
-            {tab === 'tambah' && <Form done={() => { load(); setTab('akun'); }} say={say} />}
+            {tab === 'akun' && (editing
+              ? <Form key={editing.id} me={me} init={editing} done={() => { setEditing(null); load(); }} cancel={() => setEditing(null)} say={say} />
+              : <>
+                  <Sub tabs={[['list', 'Daftar akun'], ['tambah', 'Tambah akun']]} value={sa} onChange={setSa} />
+                  {sa === 'list' ? <Akun list={list} reload={load} say={say} onEdit={openEdit} /> : <Form me={me} done={() => { load(); setSa('list'); }} say={say} />}
+                </>)}
+            {tab === 'promo' && <Voucher say={say} />}
+            {tab === 'siaran' && <Siaran say={say} />}
+            {tab === 'maint' && <Maint say={say} />}
             {tab === 'bayar' && <><Pay say={say} /><Discord say={say} /></>}
-            {tab === 'voucher' && <Voucher say={say} />}
-            {tab === 'user' && <Users say={say} onWatch={(u) => { setWatch(u.username || u.email); setTab('act'); }} />}
-            {tab === 'act' && <Act key={watch} initQ={watch} />}
+            {tab === 'user' && (
+              <>
+                <Sub tabs={[['users', 'Daftar pengguna'], ['act', 'Aktivitas']]} value={su} onChange={setSu} />
+                {su === 'users' ? <Users say={say} onWatch={(u) => { setWatch(u.username || u.email); setSu('act'); }} /> : <Act key={watch} initQ={watch} />}
+              </>
+            )}
             {tab === 'testi' && <Testi say={say} />}
             {tab === 'set' && <Sett me={me} say={say} />}
-            {tab === 'broadcast' && <AdminBroadcast />}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -156,11 +173,6 @@ function Dash({ st, list, go }) {
           <small className="mut">Total {rp(days.reduce((s, d) => s + d.rev, 0))} dari {days.reduce((s, d) => s + d.n, 0)} pesanan lunas</small>
         </div>
       )}
-      <div className="c2">
-        <h3>Rasio terjual</h3>
-        <div className="ratio"><motion.i initial={{ width: 0 }} animate={{ width: pct + '%' }} transition={{ duration: 0.8, ease: 'easeOut' }} /></div>
-        <small className="mut">{st.sold} dari {st.total} akun sudah terjual ({pct}%)</small>
-      </div>
       {sx?.recent?.length > 0 && (
         <div className="c2">
           <h3>Pesanan lunas terbaru</h3>
@@ -172,19 +184,11 @@ function Dash({ st, list, go }) {
           </div>
         </div>
       )}
-      <div className="c2">
-        <h3>Akun terbaru</h3>
-        <Table rows={list.slice(0, 5)} />
-        <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn sm" onClick={() => go('tambah')}>Tambah akun</button>
-          <button className="btn o sm" onClick={() => go('akun')}>Lihat semua</button>
-        </div>
-      </div>
     </>
   );
 }
 
-function Table({ rows, onDel, onEdit, onStatus }) {
+function Table({ rows, onDel, onEdit, onStatus, onEnd }) {
   if (!rows.length) return <p className="mut">Belum ada akun.</p>;
   return (
     <div className="tblw">
@@ -193,10 +197,10 @@ function Table({ rows, onDel, onEdit, onStatus }) {
         <tbody>
           {rows.map((a, i) => (
             <motion.tr key={a.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.03 }}>
-              <td><div className="tcell"><div className="tth"><SafeImg src={a.images?.[0]} alt="" /></div><b>{a.title}</b></div></td>
+              <td><div className="tcell"><div className="tth"><SafeImg src={a.cover} alt="" /></div><div><b>{a.title}</b>{!a.n && <span className="pill bad" style={{ marginLeft: 6 }}>Foto kosong</span>}<small className="mut" style={{ display: 'block' }}>{a.kind === 'auction' ? 'LELANG · ' + (a.top_bid ? 'bid Rp ' + a.top_bid.toLocaleString('id-ID') : 'belum ada bid') + ' · ' + (a.auction_done ? 'selesai' : a.left > 0 ? 'sisa ' + Math.floor(a.left / 3600) + ' jam ' + Math.floor((a.left % 3600) / 60) + ' mnt' : 'berakhir') : 'STORE'}{a.admin_name ? ' · oleh ' + a.admin_name : ''}{a.wa ? ' · WA ' + a.wa : ''}</small></div></div></td>
               <td className="gold"><b>{rp(a.price)}</b></td>
               <td><span className={'pill ' + a.status}>{a.status === 'available' ? 'Tersedia' : a.status === 'sold' ? 'Terjual' : 'Ditahan'}</span></td>
-              {(onDel || onEdit || onStatus) && <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{onStatus && <button className="btn o sm" onClick={() => onStatus(a, a.status === 'sold' ? 'available' : 'sold')}>{a.status === 'sold' ? 'Aktifkan lagi' : 'Tandai habis'}</button>}{onEdit && <button className="btn o sm" onClick={() => onEdit(a)}>Edit</button>}{onDel && <button className="btn red sm" onClick={() => onDel(a)}>Hapus</button>}</div></td>}
+              {(onDel || onEdit || onStatus) && <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{onEnd && a.kind === 'auction' && !a.auction_done && <button className="btn o sm" onClick={() => onEnd(a)}>Akhiri lelang</button>}{onStatus && a.kind !== 'auction' && <button className="btn o sm" onClick={() => onStatus(a, a.status === 'sold' ? 'available' : 'sold')}>{a.status === 'sold' ? 'Aktifkan lagi' : 'Tandai habis'}</button>}{onEdit && <button className="btn o sm" onClick={() => onEdit(a)}>Edit</button>}{onDel && <button className="btn red sm" onClick={() => onDel(a)}>Hapus</button>}</div></td>}
             </motion.tr>
           ))}
         </tbody>
@@ -227,6 +231,11 @@ function StokSet({ say }) {
 }
 
 function Akun({ list, reload, say, onEdit }) {
+  async function endNow(a) {
+    if (!confirm('Akhiri lelang ini sekarang? Bid tertinggi langsung menang.')) return;
+    await fetch('/api/admin/accounts', { method: 'PATCH', body: JSON.stringify({ id: a.id, action: 'end_now' }) });
+    say('Lelang diakhiri'); reload();
+  }
   async function setStatus(a, status) {
     await fetch('/api/admin/accounts', { method: 'PATCH', body: JSON.stringify({ id: a.id, status }) });
     say('Status stok diubah'); reload();
@@ -248,15 +257,15 @@ function Akun({ list, reload, say, onEdit }) {
           <button key={k} type="button" className={'chip' + (f === k ? ' on' : '')} onClick={() => setF(k)}>{l}</button>
         ))}
       </div>
-      <Table rows={rows} onDel={del} onEdit={onEdit} onStatus={setStatus} />
+      <Table rows={rows} onDel={del} onEdit={onEdit} onStatus={setStatus} onEnd={endNow} />
     </div>
     </>
   );
 }
 
-function Form({ init, done, say, cancel }) {
+function Form({ init, done, say, cancel, me }) {
   const edit = !!init;
-  const [f, setF] = useState({ title: init?.title || '', price: init?.price || '', description: init?.description || '', specs: init?.specs || '', username: init?.username || '', password: init?.password || '', status: init?.status || 'available' });
+  const [f, setF] = useState({ title: init?.title || '', price: init?.price || '', description: init?.description || '', specs: init?.specs || '', username: init?.username || '', password: init?.password || '', status: init?.status || 'available', wa: init?.wa || me?.phone || '', kind: init?.kind || 'fixed', mins: '1440', step: '1000', ends: '' });
   const [photos, setPhotos] = useState((init?.images || []).map((u) => ({ id: Math.random().toString(36).slice(2), preview: u, status: 'ok', url: u })));
   const [busy, setB] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -290,6 +299,7 @@ function Form({ init, done, say, cancel }) {
     setB(true);
     try {
       const body = { ...f, images: photos.map((x) => x.url) };
+      if (!edit && f.kind === 'auction' && f.ends) body.ends = new Date(f.ends).toISOString();
       if (edit) body.id = init.id;
       const r = await fetch('/api/admin/accounts', { method: edit ? 'PUT' : 'POST', body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
@@ -301,7 +311,21 @@ function Form({ init, done, say, cancel }) {
     <form className="c2" onSubmit={save}>
       <div className="fg">
         <div className="full"><label className="l">Judul akun</label><input placeholder="Contoh: Akun Lv 100 + Limited" value={f.title} onChange={set('title')} required /></div>
-        <div><label className="l">Harga (Rp)</label><input type="number" inputMode="numeric" placeholder="50000" value={f.price} onChange={set('price')} required /></div>
+        <div><label className="l">{f.kind === 'auction' ? 'Harga awal lelang (Rp)' : 'Harga (Rp)'}</label><input type="number" inputMode="numeric" placeholder="50000" value={f.price} onChange={set('price')} required /></div>
+        {!edit && (
+          <div className="full"><label className="l">Jenis produk</label>
+            <div className="chips"><button type="button" className={'chip' + (f.kind === 'fixed' ? ' on' : '')} onClick={() => setF({ ...f, kind: 'fixed' })}>Store (harga tetap)</button><button type="button" className={'chip' + (f.kind === 'auction' ? ' on' : '')} onClick={() => setF({ ...f, kind: 'auction' })}>Lelang</button></div>
+          </div>
+        )}
+        {!edit && f.kind === 'auction' && (
+          <>
+            <div><label className="l">Kelipatan bid (Rp)</label><input type="number" inputMode="numeric" value={f.step} onChange={set('step')} /></div>
+            <div><label className="l">Lama lelang</label>
+              <select value={f.mins} onChange={set('mins')}>{[['30', '30 menit'], ['60', '1 jam'], ['180', '3 jam'], ['360', '6 jam'], ['720', '12 jam'], ['1440', '1 hari'], ['4320', '3 hari'], ['10080', '7 hari']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+            </div>
+            <div className="full"><label className="l">Atau tentukan waktu habis (opsional, mengalahkan lama lelang)</label><input type="datetime-local" value={f.ends} onChange={set('ends')} /></div>
+          </>
+        )}
         {edit ? (
           <div><label className="l">Status stok</label>
             <select value={f.status} onChange={set('status')}><option value="available">Tersedia</option><option value="reserved">Ditahan</option><option value="sold">Terjual</option></select>
@@ -312,6 +336,9 @@ function Form({ init, done, say, cancel }) {
         <div><label className="l">Username akun Roblox</label><input value={f.username} onChange={set('username')} required /></div>
         <div><label className="l">Password akun Roblox</label><input value={f.password} onChange={set('password')} required /></div>
       </div>
+      <label className="l">Nomor WhatsApp admin untuk stok ini</label>
+      <input inputMode="tel" placeholder="0812xxxxxxxx" value={f.wa} onChange={set('wa')} />
+      <p className="mut" style={{ marginBottom: 12, fontSize: 13 }}>Isi dulu sebelum pilih foto. Setelah pembeli membayar, mereka langsung diarahkan ke WhatsApp ini.</p>
       <label className="l">Foto akun dan spesifikasi ({photos.length}/8)</label>
       <label className="drop">
         <b>Ketuk untuk pilih foto</b><small>Otomatis dikecilkan. Bisa pilih beberapa foto.</small>
@@ -564,14 +591,74 @@ function Voucher({ say }) {
   );
 }
 
+const TPL = [['Voucher baru', 'Ada voucher baru untukmu!', 'Halo! Kami punya voucher baru. Pakai kodenya saat checkout sebelum kehabisan.'], ['Lelang baru', 'Lelang akun baru sudah dibuka', 'Halo! Ada lelang akun baru. Pasang bid tertinggimu sebelum waktu habis.'], ['Stok baru', 'Stok akun baru sudah masuk', 'Halo! Stok akun baru sudah tersedia di Store. Cek sekarang sebelum diambil orang lain.']];
+function Siaran({ say }) {
+  const [info, setInfo] = useState(null), [subject, setSubject] = useState(''), [message, setMessage] = useState(''), [voucher, setVoucher] = useState(''), [target, setTarget] = useState('all'), [busy, setBusy] = useState(false);
+  const load = () => fetch('/api/admin/broadcast').then((r) => r.json()).then(setInfo).catch(() => {});
+  useEffect(() => { load(); }, []);
+  async function send(test) {
+    const cnt = target === 'all' ? info?.total : target === 'buyers' ? info?.buyers : 'pengguna voucher';
+    if (!test && !confirm('Kirim siaran ini ke ' + cnt + ' penerima?')) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/admin/broadcast', { method: 'POST', body: JSON.stringify({ subject, message, voucher, target, test }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { say(test ? 'Email tes dikirim ke emailmu' : 'Terkirim ke ' + d.sent + ' penerima'); if (!test) load(); } else say(d.error || 'Gagal mengirim');
+    } catch { say('Koneksi gagal'); }
+    setBusy(false);
+  }
+  return (
+    <>
+      <div className="c2">
+        <h3>Siaran email ke pengguna</h3>
+        <p className="mut" style={{ marginBottom: 10 }}>Kirim kabar voucher, lelang, atau stok baru ke Gmail pengguna yang terdaftar. Hari ini terkirim {info?.today ?? 0} dari batas aman {info?.limit ?? 450} penerima.</p>
+        <div className="chips">{TPL.map(([n, sj, ms]) => <button key={n} type="button" className="chip" onClick={() => { setSubject(sj); setMessage(ms); }}>{n}</button>)}</div>
+        <label className="l">Judul email</label>
+        <input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={120} />
+        <label className="l">Pesan</label>
+        <textarea rows="5" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={2000} />
+        <div className="fg">
+          <div><label className="l">Sisipkan voucher (opsional)</label>
+            <select value={voucher} onChange={(e) => setVoucher(e.target.value)}>
+              <option value="">Tanpa voucher</option>
+              {(info?.vouchers || []).map((v) => <option key={v.code} value={v.code}>{v.code} · {v.kind === 'percent' ? v.value + '%' : rp(v.value)}{v.users ? ' · khusus' : ''}</option>)}
+            </select>
+          </div>
+          <div><label className="l">Kirim ke</label>
+            <select value={target} onChange={(e) => setTarget(e.target.value)}>
+              <option value="all">Semua pengguna ({info?.total ?? 0})</option>
+              <option value="buyers">Yang pernah membeli ({info?.buyers ?? 0})</option>
+              <option value="voucher">Khusus pengguna voucher terpilih</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn o" disabled={busy} onClick={() => send(true)}>Kirim tes ke emailku</button>
+          <button className="btn" disabled={busy || subject.trim().length < 3 || message.trim().length < 5} onClick={() => send(false)}>{busy ? 'Mengirim…' : 'Kirim siaran'}</button>
+        </div>
+        <p className="mut" style={{ marginTop: 10, fontSize: 13 }}>Pengguna yang mematikan notifikasi di Profil tidak akan menerima siaran.</p>
+      </div>
+      {info?.history?.length > 0 && (
+        <div className="c2">
+          <h3>Riwayat siaran</h3>
+          <div className="tblw"><table className="tbl" style={{ minWidth: 420 }}>
+            <thead><tr><th>Judul</th><th>Penerima</th><th>Waktu</th></tr></thead>
+            <tbody>{info.history.map((h) => <tr key={h.id}><td>{h.subject}</td><td>{h.sent}</td><td className="mut">{new Date(h.created).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td></tr>)}</tbody>
+          </table></div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function Pay({ say }) {
-  const [mid, setMid] = useState(''), [key, setKey] = useState(''), [has, setHas] = useState(false), [fee, setFee] = useState('350'), [o, setO] = useState('');
+  const [mid, setMid] = useState(''), [key, setKey] = useState(''), [has, setHas] = useState(false), [fee, setFee] = useState('350'), [auc, setAuc] = useState('30'), [o, setO] = useState('');
   useEffect(() => {
     setO(location.origin);
-    fetch('/api/admin/settings').then((r) => r.json()).then((d) => { setMid(d.mid || ''); setHas(!!d.hasKey); if (d.fee !== undefined) setFee(String(d.fee)); }).catch(() => {});
+    fetch('/api/admin/settings').then((r) => r.json()).then((d) => { setMid(d.mid || ''); setHas(!!d.hasKey); if (d.fee !== undefined) setFee(String(d.fee)); if (d.auc) setAuc(String(d.auc)); }).catch(() => {});
   }, []);
   async function save() {
-    const r = await fetch('/api/admin/settings', { method: 'POST', body: JSON.stringify({ mid, key, fee }) });
+    const r = await fetch('/api/admin/settings', { method: 'POST', body: JSON.stringify({ mid, key, fee, auc }) });
     const d = await r.json().catch(() => ({}));
     if (r.ok) { if (key) setHas(true); setKey(''); say('Pembayaran tersimpan'); } else say(d.error || 'Gagal menyimpan');
   }
@@ -587,6 +674,8 @@ function Pay({ say }) {
       <label className="l">Biaya layanan per transaksi (Rp)</label>
       <input type="number" inputMode="numeric" value={fee} onChange={(e) => setFee(e.target.value)} />
       <p className="mut" style={{ marginBottom: 10 }}>Biaya ini ditambahkan ke total QRIS pembeli supaya uang akun utuh. Contoh: akun Rp 25.000 menjadi QRIS Rp {(25000 + f).toLocaleString('id-ID')}.</p>
+      <label className="l">Waktu bayar pemenang lelang (menit, 10 sampai 240)</label>
+      <input type="number" inputMode="numeric" value={auc} onChange={(e) => setAuc(e.target.value)} />
       <label className="l">Webhook URL (tempel di dashboard AriesPay)</label>
       <input readOnly value={o + '/api/webhook'} onFocus={(e) => e.target.select()} />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -620,20 +709,85 @@ function Sistem() {
   );
 }
 
-function Sett({ me }) {
+function MyPhone({ me, say }) {
+  const [p, setP] = useState(me.phone || '');
+  async function save() {
+    const r = await fetch('/api/admin/me', { method: 'POST', body: JSON.stringify({ phone: p }) });
+    const d = await r.json().catch(() => ({}));
+    say(r.ok ? 'Nomor WhatsApp tersimpan' : d.error || 'Gagal menyimpan');
+  }
+  return (
+    <div className="c2">
+      <h3>Nomor WhatsApp saya</h3>
+      <p className="mut" style={{ marginBottom: 10 }}>Dipakai otomatis untuk stok yang kamu upload. Pembeli diarahkan ke nomor ini setelah membayar.</p>
+      <input inputMode="tel" placeholder="0812xxxxxxxx" value={p} onChange={(e) => setP(e.target.value)} />
+      <button className="btn" onClick={save}>Simpan nomor</button>
+    </div>
+  );
+}
+
+function Sett({ me, say }) {
   return (
     <>
-      <Sistem />
+      {me.owner && <Sistem />}
+      <MyPhone me={me} say={say} />
       <div className="c2">
         <h3>Akun admin</h3>
         <p><span className="mut">Username:</span> <b>{me.username}</b></p>
         <p><span className="mut">Gmail:</span> <b>{me.email}</b></p>
-        <p><span className="mut">Role:</span> <b>{me.role}</b></p>
-        <p className="mut" style={{ marginTop: 8 }}>Login bisa memakai username atau Gmail di atas.</p>
+        <p><span className="mut">Peran:</span> <b>{me.owner ? '♛ Sang Penguasa (owner)' : 'Admin'}</b></p>
+        <p className="mut" style={{ marginTop: 8 }}>Ganti foto profil dan username di <a href="/profil" className="go">halaman Profil</a>.</p>
       </div>
       <div className="c2">
-        <h3>Ganti password</h3>
-        <PwOtp email={me.email} />
+        <h3>Ganti sandi</h3>
+        <PwOtp />
+      </div>
+    </>
+  );
+}
+
+function Maint({ say }) {
+  const [m, setM] = useState(null), [start, setStart] = useState('23:00'), [end, setEnd] = useState('01:00'), [msg, setMsg] = useState(''), [busy, setBusy] = useState(false);
+  const apply = (d) => { setM(d); setStart(d.start); setEnd(d.end); setMsg(d.msg); };
+  useEffect(() => { fetch('/api/admin/maintenance').then((r) => r.json()).then(apply).catch(() => {}); }, []);
+  async function save(body, ok) {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/admin/maintenance', { method: 'POST', body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { apply(d); say(ok || 'Tersimpan'); } else say(d.error || 'Gagal menyimpan');
+    } catch { say('Koneksi gagal'); }
+    setBusy(false);
+  }
+  if (!m) return <div className="c2"><p className="mut">Memuat…</p></div>;
+  const MODES = [['auto', 'Otomatis (jadwal)'], ['on', 'Paksa AKTIF'], ['off', 'Paksa MATI']];
+  return (
+    <>
+      <div className="c2">
+        <h3>Status sekarang</h3>
+        <p style={{ fontSize: 18, marginBottom: 6 }}>
+          <span className={'pill ' + (m.on ? 'gold' : 'ok')}>{m.on ? 'MAINTENANCE AKTIF' : 'TOKO BUKA'}</span>{' '}
+          {m.on && <span className="mut">({m.by === 'manual' ? 'dinyalakan manual' : 'jadwal otomatis'})</span>}
+        </p>
+        <p className="mut">Jam sekarang: <b>{m.now} WIB</b>. Perubahan berlaku maksimal 10 detik. Kamu sebagai owner tetap bisa membuka toko dan panel admin untuk tes.</p>
+      </div>
+      <div className="c2">
+        <h3>Mode</h3>
+        <div className="chips">{MODES.map(([k, l]) => <button key={k} type="button" disabled={busy} className={'chip' + (m.mode === k ? ' on' : '')} onClick={() => save({ mode: k }, 'Mode: ' + l)}>{l}</button>)}</div>
+        <p className="mut" style={{ fontSize: 13 }}>
+          Otomatis: toko tutup tiap hari pukul {m.start} sampai {m.end} WIB. Paksa AKTIF: tutup sekarang sampai kamu matikan (abaikan jadwal). Paksa MATI: toko tetap buka, jadwal diabaikan (misal malam ini mau tetap jualan).
+        </p>
+      </div>
+      <div className="c2">
+        <h3>Jadwal otomatis (WIB)</h3>
+        <div className="fg">
+          <div><label className="l">Mulai</label><input type="time" value={start} onChange={(e) => setStart(e.target.value)} /></div>
+          <div><label className="l">Selesai</label><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
+        </div>
+        <label className="l">Pesan untuk pengunjung</label>
+        <textarea rows="3" maxLength={300} value={msg} onChange={(e) => setMsg(e.target.value)} />
+        <button className="btn" disabled={busy} onClick={() => save({ start, end, msg }, 'Jadwal dan pesan tersimpan')}>Simpan jadwal</button>
+        <p className="mut" style={{ marginTop: 10, fontSize: 13 }}>Selama maintenance: halaman toko menampilkan layar maintenance, pembelian, bid, dan review diblokir. Webhook pembayaran tetap jalan supaya pembayaran yang sudah masuk tidak hilang.</p>
       </div>
     </>
   );
